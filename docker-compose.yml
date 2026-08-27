@@ -1,0 +1,144 @@
+# secuardian-basic — python-fastapi (wise-dev-standard / python-fastapi)
+# 도메인 오버레이: ict-saas (KSIC J)
+# 참조: SmartHaccp-MultiAgent docker-compose.yml
+#
+# 포트 매핑은 .env.* 의 *_PORT 변수로 제어 (make *-all 시 --env-file 자동 전달)
+# 기본값: BACKEND_PORT=8200, FRONTEND_PORT=4200, POSTGRES_PORT=5432,
+#          REDIS_PORT=6379, OLLAMA_PORT=11434
+services:
+  # ── 인프라 (profiles 없음 → make up 시 항상 기동) ─────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-app_db}
+      TZ: Asia/Seoul
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql/pg:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7.4-alpine
+    ports: ["${REDIS_PORT:-6379}:6379"]
+
+  # Ollama — 로컬 LLM 폴백 (Claude API 장애 시 자동 전환, F3)
+  # 포트: OLLAMA_PORT (기본 11434). 네이티브 Ollama 실행 중이면 make *-all 이 자동 스킵
+  #
+  # 실행 런타임(OLLAMA_RUNTIME): cpu(기본) | gpu | mlx
+  #   - cpu : 이 파일 그대로 CPU 추론.
+  #   - gpu : Linux + NVIDIA 시 docker-compose.gpu.yml 오버레이로 호스트 GPU 예약
+  #           (preflight 가 OLLAMA_RUNTIME=gpu 감지 시 자동 병합).
+  #   - mlx : macOS(Apple Silicon) Metal/MLX 가속 — Docker(리눅스 VM)는 Metal 접근 불가이므로
+  #           네이티브 Ollama/MLX 서버를 호스트에서 구동하고 Docker Ollama 는 띄우지 않음
+  #           (preflight 가 안내). 앱은 OLLAMA_BASE_URL(host.docker.internal:PORT)로 접속.
+  ollama:
+    image: ollama/ollama:latest
+    ports: ["${OLLAMA_PORT:-11434}:11434"]
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=-1
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  # ── R19-1: 로컬 LLM 대체 백엔드 (선택 기동) ────────────────────────────────
+  # llama.cpp server — OpenAI 호환. GGUF 모델을 ./models 에 두고 profile 로 기동:
+  #   LLAMACPP_MODEL_FILE=/models/<file>.gguf docker compose --profile llamacpp up -d llamacpp
+  llamacpp:
+    profiles: ["llamacpp"]
+    image: ghcr.io/ggml-org/llama.cpp:server
+    ports: ["${LLAMACPP_PORT:-8180}:8080"]
+    volumes:
+      - ./models:/models
+    command: ["-m", "${LLAMACPP_MODEL_FILE:-/models/model.gguf}", "--host", "0.0.0.0", "--port", "8080"]
+
+  # vLLM — OpenAI 호환. Linux + NVIDIA GPU 권장:
+  #   VLLM_MODEL=<hf-model-id> docker compose --profile vllm up -d vllm
+  vllm:
+    profiles: ["vllm"]
+    image: vllm/vllm-openai:latest
+    ports: ["${VLLM_PORT:-8100}:8000"]
+    volumes:
+      - vllm-cache:/root/.cache/huggingface
+    command: ["--model", "${VLLM_MODEL:-Qwen/Qwen2.5-3B-Instruct}"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${VLLM_GPU_COUNT:-all}
+              capabilities: [gpu]
+
+  # ── 앱 서비스 (profiles:[app] → make up 에서 제외, make build/dev 로 기동) ─
+  api:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # addon-agents/deployed/ 는 .dockerignore 로 제외 → 기본 이미지 미포함 (런타임 bind mount 로 주입)
+    env_file: [".env.${ENV:-dev}"]
+    environment:
+      # ENV 명시 — docker exec 시 os.getenv('ENV') 가 올바른 값을 반환하도록 보장
+      - ENV=${ENV:-dev}
+      # 컨테이너 내부 서비스 주소 — 호스트 포트 매핑과 무관하게 내부 포트 사용
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-app_db}
+      - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=http://host.docker.internal:${OLLAMA_PORT:-11434}
+      # MCP URL 외부 노출 호스트 — 호스트 IP 또는 도메인 명시 (Docker/NAT 환경 필수)
+      - MCP_HOST=${MCP_HOST:-}
+      # addon 업로드 후 web 재빌드 전략 (F10/D5): none(기본, 재빌드 안 함) | compose(docker.sock 필요) | webhook(ADDON_WEB_REBUILD_WEBHOOK_URL 호출)
+      - ADDON_WEB_REBUILD=${ADDON_WEB_REBUILD:-none}
+      - ADDON_WEB_REBUILD_WEBHOOK_URL=${ADDON_WEB_REBUILD_WEBHOOK_URL:-}
+      # ADDON_WEB_REBUILD=compose 시 docker compose -p 값 — host에서 기동한 프로젝트명과 일치 필요
+      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-secuardian-basic}
+    ports:
+      - "${BACKEND_PORT:-8200}:8000"
+      # MCP proxy 포트 풀 — router_mcp_config.py의 랜덤 할당 범위와 반드시 일치
+      # (network_mode: host는 Docker Desktop/Mac·Windows에서 host 포트로 전달되지 않아 사용 불가)
+      - "${MCP_PORT_RANGE:-20000-20019}:20000-20019"
+    volumes:
+      # docker.sock 은 기본 미마운트(D5). ADDON_WEB_REBUILD=compose 를 쓸 때만 오버라이드 파일에서
+      #   - /var/run/docker.sock:/var/run/docker.sock  를 추가할 것.
+      - ${ADDON_DEPLOYED_PATH:-./addon-agents/deployed}:/app/addon-agents/deployed
+      # ZIP 업로드 시 복사한 front TSX를 host에 반영 → web 재빌드 시 COPY front/ 에 포함
+      - ./front/src/pages/addon/deployed:/app/front/src/pages/addon/deployed
+    extra_hosts:
+      # host.docker.internal — Linux Docker Engine 은 기본 미지원, host-gateway 로 명시 필요
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ollama:
+        condition: service_started
+
+  # ── 프론트엔드 (profiles:[web] → prod 이미지 빌드용) ──────────────────────
+  web:
+    profiles: ["web"]
+    build:
+      context: ./front
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: "http://localhost:${BACKEND_PORT:-8200}"
+        # 기본 이미지에서 배포된 ADDON 에이전트 화면 제외 (make build 가 ENV 에 따라 전달)
+        SKIP_DEPLOYED_ADDONS: "${SKIP_DEPLOYED_ADDONS:-false}"
+    ports: ["${FRONTEND_PORT:-4200}:80"]
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  ollama-data:
+  vllm-cache:

@@ -1,0 +1,83 @@
+# SeCuardian — SonarQube Community Edition (E08 T08-1)
+# License: LGPL-3.0 (SonarQube CE) — 운영 사용 허용
+# ⚠️ SonarSource/sonarqube-mcp-server: NOASSERTION — 법무 검토 전 포함 금지
+#    대신 REST API(/api/qualitygates/project_status)로 연동
+#
+# 사용법:
+#   cp deploy/docker/sonarqube.env.example deploy/docker/.env.sonarqube
+#   # .env.sonarqube 에서 SONAR_DB_PASSWORD 설정
+#   docker compose -f deploy/docker/docker-compose.sonarqube.yml --env-file deploy/docker/.env.sonarqube up -d
+#
+# 접속: http://localhost:9000  (초기 admin/admin → 즉시 변경 필수)
+
+name: secuardian-sonarqube
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  sonarqube:
+    image: sonarqube:community
+    container_name: secuardian-sonarqube
+    depends_on:
+      sonardb:
+        condition: service_healthy
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonardb:5432/${SONAR_DB_NAME:-sonarqube}
+      SONAR_JDBC_USERNAME: ${SONAR_DB_USER:-sonar}
+      SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD}
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    ports:
+      - "${SONAR_PORT:-9000}:9000"
+    ulimits:
+      nofile:
+        soft: 131072
+        hard: 131072
+      nproc:
+        soft: 8192
+        hard: 8192
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/api/system/status | grep -q '\"status\":\"UP\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - sonar-net
+
+  sonardb:
+    image: postgres:17-alpine
+    container_name: secuardian-sonardb
+    environment:
+      POSTGRES_DB: ${SONAR_DB_NAME:-sonarqube}
+      POSTGRES_USER: ${SONAR_DB_USER:-sonar}
+      POSTGRES_PASSWORD: ${SONAR_DB_PASSWORD}
+    volumes:
+      - sonardb_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SONAR_DB_USER:-sonar} -d ${SONAR_DB_NAME:-sonarqube}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - sonar-net
+
+volumes:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  sonardb_data:
+
+networks:
+  sonar-net:
+    driver: bridge

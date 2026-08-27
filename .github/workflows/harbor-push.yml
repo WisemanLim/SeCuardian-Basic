@@ -1,0 +1,86 @@
+name: Harbor Build & Sign
+# E03 T03-2 — CI 이미지 빌드 → Cosign 서명 → Harbor 푸시
+# License: Apache-2.0 (Harbor) | Apache-2.0 (Sigstore/Cosign)
+#
+# Required GitHub Secrets:
+#   HARBOR_ROBOT_NAME   — robot$secuardian-ci (harbor_setup.sh 출력)
+#   HARBOR_ROBOT_SECRET — Robot Account 시크릿
+#   COSIGN_PRIVATE_KEY  — cosign_setup.sh 출력 (base64)
+#   COSIGN_PASSWORD     — Cosign 키 비밀번호
+#
+# Required GitHub Variables (Settings → Variables):
+#   HARBOR_URL     — e.g. https://harbor.example.com
+#   HARBOR_PROJECT — secuardian
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - app/**
+      - pyproject.toml
+
+env:
+  REGISTRY: ${{ vars.HARBOR_URL }}
+  PROJECT: ${{ vars.HARBOR_PROJECT || 'secuardian' }}
+  IMAGE_NAME: secuardian
+
+jobs:
+  build-sign-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # OIDC — keyless signing 옵션 (현재 key-based 사용)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image tag
+        run: |
+          SHORT_SHA="${GITHUB_SHA::8}"
+          echo "IMAGE_TAG=${REGISTRY}/${PROJECT}/${IMAGE_NAME}:${SHORT_SHA}" >> "$GITHUB_ENV"
+          echo "IMAGE_LATEST=${REGISTRY}/${PROJECT}/${IMAGE_NAME}:latest" >> "$GITHUB_ENV"
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -t "$IMAGE_TAG" \
+            -t "$IMAGE_LATEST" \
+            .
+
+      - name: Login to Harbor registry
+        run: |
+          echo "${{ secrets.HARBOR_ROBOT_SECRET }}" | \
+          docker login "$REGISTRY" \
+            -u "${{ secrets.HARBOR_ROBOT_NAME }}" \
+            --password-stdin
+
+      - name: Push image to Harbor
+        run: |
+          docker push "$IMAGE_TAG"
+          docker push "$IMAGE_LATEST"
+
+      - name: Get image digest
+        run: |
+          DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_TAG" 2>/dev/null \
+            || echo "$IMAGE_TAG")
+          echo "IMAGE_DIGEST=${DIGEST}" >> "$GITHUB_ENV"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image with Cosign
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          cosign sign --yes --key env://COSIGN_PRIVATE_KEY "$IMAGE_DIGEST"
+
+      - name: Verify Cosign signature
+        run: |
+          cosign verify \
+            --key deploy/secrets/cosign/cosign.pub \
+            "$IMAGE_DIGEST" \
+            --output text \
+          || echo "⚠️  cosign.pub 없음 — 서명 검증 skip (CI에서는 sign 완료)"

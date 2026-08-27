@@ -1,0 +1,27 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Genians CI 그린(#86BC25) 브랜드 팔레트 — 기존 blue/indigo 계열 클래스를 그대로 두고
+   Tailwind v4 테마 변수만 오버라이드해 플랫폼 메인 색상을 교체한다.
+   출처: https://www.genians.co.kr (main CSS 강조색 #86BC25) */
+@theme {
+  --color-blue-50:  #f6fae9;
+  --color-blue-100: #e9f3cf;
+  --color-blue-200: #d4e8a4;
+  --color-blue-300: #bad976;
+  --color-blue-400: #a1cb4b;
+  --color-blue-500: #86bc25;
+  --color-blue-600: #6fa01c;
+  --color-blue-700: #567d15;
+  --color-blue-800: #456313;
+  --color-blue-900: #395112;
+  --color-blue-950: #1e2c08;
+
+  /* 그라디언트 파트너(from-blue-600 → to-indigo-600) — 한 단계 깊은 그린 */
+  --color-indigo-200: #c9e093;
+  --color-indigo-400: #8bb32e;
+  --color-indigo-600: #567d15;
+  --color-indigo-700: #456313;
+  --color-indigo-800: #395112;
+  --color-indigo-900: #2d400e;
+}

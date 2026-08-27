@@ -1,0 +1,15 @@
+# =============================================================================
+# .dockerignore — api 이미지 build context(=repo root) 제외 목록
+# =============================================================================
+# 배포된 ADDON 에이전트는 기본(base) 이미지에 포함하지 않는다.
+#   - 시험/기본 이미지는 순정 상태(pre-deployed addon 없음)로 유지
+#   - 런타임에 compose bind mount(./addon-agents/deployed → /app/addon-agents/deployed)
+#     또는 관리 UI 업로드(핫 디플로이)로 주입된다
+# 내장/업로드 구분 없이 deployed/ 전체 제외 (built-in 도 런타임 mount 로 복원).
+addon-agents/deployed/
+
+# 참고: front(web) 이미지의 화면(front) 제외는 .dockerignore 로 처리하지 않는다.
+#   web 은 build context 가 ./front 이고, ADDON 업로드 시 _rebuild_web 이
+#   front/src/pages/addon/deployed/{key}.tsx 를 새로 추가한 뒤 재빌드해야 하므로,
+#   여기서 정적 제외하면 업로드된 화면까지 사라져 핫 디플로이가 깨진다.
+#   → front/Dockerfile 의 SKIP_DEPLOYED_ADDONS 빌드 인자(조건부 제외)로 처리한다.

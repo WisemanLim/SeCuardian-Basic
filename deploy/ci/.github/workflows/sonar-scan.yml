@@ -1,0 +1,44 @@
+# SeCuardian — SonarQube SAST CI (E08 T08-1)
+# License: LGPL-3.0 (SonarQube CE)
+# ⚠️ SonarSource/sonarqube-mcp-server: NOASSERTION — REST API 사용 권장
+#
+# Required GitHub Secrets:
+#   SONAR_TOKEN       — SonarQube 사용자 토큰 (Administration → Security → Generate Token)
+# Required GitHub Variables:
+#   SONAR_HOST_URL    — e.g. http://sonar.example.com:9000
+#
+# 사용법: 이 파일을 프로젝트 루트 .github/workflows/sonar-scan.yml 에 복사
+# sonar-project.properties 가 프로젝트 루트에 있어야 함
+
+name: SonarQube SAST
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  sast:
+    name: SonarQube Scan + Quality Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # blame / PR decoration 위해 전체 이력 필요
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+        with:
+          args: >-
+            -Dsonar.projectKey=secuardian
+            -Dsonar.qualitygate.wait=true
+
+      - name: Quality Gate Check
+        uses: SonarSource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}

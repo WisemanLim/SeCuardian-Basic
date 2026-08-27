@@ -1,0 +1,93 @@
+---
+# SeCuardian-Basic — Ansible Group Variables
+# 하드닝 플레이북 공통 변수
+
+# ── Kernel sysctl 하드닝 값 ──────────────────────────────────────────────────
+# 출처: Kicksecure/security-misc 참조 후 Ansible로 재구현 (NOASSERTION 라이선스 회피)
+# Source: Referenced from Kicksecure/security-misc, re-implemented via Ansible
+
+kernel_hardening_sysctl:
+  # 커널 정보 노출 제한
+  kernel.dmesg_restrict: "1"
+  kernel.kptr_restrict: "2"
+  kernel.unprivileged_bpf_disabled: "1"
+
+  # PTRACE 제한 (개발 서버는 주의: 일부 디버거 동작 불가)
+  kernel.yama.ptrace_scope: "1"
+
+  # SYN Flood 방어
+  net.ipv4.tcp_syncookies: "1"
+
+  # IP 스푸핑 방지 (비대칭 라우팅 환경에서 패킷 드롭 가능 — 적용 전 라우팅 확인)
+  net.ipv4.conf.all.rp_filter: "1"
+  net.ipv4.conf.default.rp_filter: "1"
+
+  # IP 소스 라우팅 비활성화
+  net.ipv4.conf.all.accept_source_route: "0"
+  net.ipv4.conf.default.accept_source_route: "0"
+
+  # ICMP 리다이렉트 비활성화
+  net.ipv4.conf.all.accept_redirects: "0"
+  net.ipv4.conf.default.accept_redirects: "0"
+  net.ipv4.conf.all.secure_redirects: "0"
+  net.ipv6.conf.all.accept_redirects: "0"
+
+  # ICMP 리다이렉트 전송 비활성화
+  net.ipv4.conf.all.send_redirects: "0"
+  net.ipv4.conf.default.send_redirects: "0"
+
+  # IPv6 라우터 광고 비활성화
+  net.ipv6.conf.all.accept_ra: "0"
+  net.ipv6.conf.default.accept_ra: "0"
+
+  # 로그 마틴 패킷
+  net.ipv4.conf.all.log_martians: "1"
+  net.ipv4.conf.default.log_martians: "1"
+
+  # 코어 덤프 비활성화
+  fs.suid_dumpable: "0"
+
+  # ASLR 최대화
+  kernel.randomize_va_space: "2"
+
+  # 매직 SysRq 키 비활성화
+  kernel.sysrq: "0"
+
+# ── 비활성화할 불필요 서비스 ──────────────────────────────────────────────────
+unnecessary_services:
+  - avahi-daemon
+  - cups
+  - rpcbind
+  - bluetooth
+  - isc-dhcp-server
+  - isc-dhcp-server6
+
+# ── umask 설정 ─────────────────────────────────────────────────────────────
+login_defs_umask: "027"
+
+# ── SSH 하드닝 ──────────────────────────────────────────────────────────────
+ssh_hardening:
+  PermitRootLogin: "no"
+  PasswordAuthentication: "no"
+  X11Forwarding: "no"
+  MaxAuthTries: "3"
+  LoginGraceTime: "30"
+  AllowTcpForwarding: "no"
+  Protocol: "2"
+
+# ── 파일 권한 강화 ────────────────────────────────────────────────────────────
+sensitive_files:
+  - path: /etc/passwd
+    mode: "0644"
+  - path: /etc/shadow
+    mode: "0640"
+  - path: /etc/group
+    mode: "0644"
+  - path: /etc/gshadow
+    mode: "0640"
+  - path: /etc/crontab
+    mode: "0600"
+  - path: /etc/cron.d
+    mode: "0700"
+  - path: /etc/ssh/sshd_config
+    mode: "0600"

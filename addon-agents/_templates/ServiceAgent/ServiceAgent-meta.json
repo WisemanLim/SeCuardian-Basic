@@ -1,0 +1,71 @@
+{
+  "schema_version": 2,
+  "agent_key": "serviceagent",
+  "agent_type": "service",
+  "version": "1.1.0",
+  "display_name": {
+    "ko": "서비스 Agent",
+    "en": "Service Agent"
+  },
+  "description": {
+    "ko": "백엔드 비즈니스 로직을 수행하는 서비스 Agent입니다. 전용 화면이 없어 좌측 메뉴에는 표시되지 않으며, AI 어시스턴트를 통해 질의응답으로 사용합니다.",
+    "en": "A service agent that runs backend business logic. It has no dedicated screen and does not appear in the left menu — use it via Q&A through the AI Assistant."
+  },
+  "capabilities": [
+    {
+      "verb": "process",
+      "domain": "service.default",
+      "description": "입력 데이터를 처리하고 결과를 반환합니다",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "input"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "output": {
+            "type": "object"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "qos": {
+        "max_latency_ms": 10000,
+        "supports_async": true,
+        "supports_streaming": true
+      }
+    }
+  ],
+  "governance": {
+    "data_classification": "internal",
+    "human_approval_required": false,
+    "audit_level": "standard"
+  },
+  "required_env": [],
+  "optional_env": [
+    "ANTHROPIC_API_KEY"
+  ],
+  "requires": {
+    "core": ">=1.0.0",
+    "sdk": ">=1.0.0",
+    "agents": []
+  },
+  "dependencies": {
+    "python": []
+  },
+  "tables_owned": [],
+  "categories": [
+    "template"
+  ],
+  "publisher": "edentns",
+  "license": "MIT"
+}

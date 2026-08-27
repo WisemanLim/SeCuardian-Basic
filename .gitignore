@@ -1,0 +1,114 @@
+# ===== common / 공통 (env·secrets·logs·editor) =====
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+secrets.*
+.secrets/
+*.log
+logs/
+tmp/
+.tmp/
+*.pid
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+*.swp
+*.swo
+*~
+# test 원본 로그 비커밋 / raw test logs (test-runner standard)
+test/**/logs/
+
+# ===== AI / LLM 도구 =====
+.omc/
+.aider*
+.continue/
+.codeium/
+.tabnine/
+.sourcegraph/
+.cursor/workspaceStorage/
+.github/copilot-workspace/
+
+# ===== platform / 플랫폼 (macOS·Windows·Linux) =====
+.DS_Store
+.DS_Store?
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+Icon?
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg
+*.egg-info/
+.eggs/
+.Python
+.venv/
+venv/
+env/
+ENV/
+.uv/
+.uv-cache/
+__pypackages__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.so
+uv.lock
+
+# ===== Node / TypeScript =====
+node_modules/
+dist/
+build/
+out/
+.next/
+.vite/
+.cache/
+coverage/
+.eslintcache
+.npm/
+*.tgz
+pnpm-debug.log*
+*.tsbuildinfo
+playwright-report/
+test-results/
+
+# ===== Docker / Deploy =====
+*.tar
+*.tar.gz
+deploy/helm/charts/
+deploy/helm/*.lock
+
+# ===== Go 빌드 산출물 =====
+# VASCA worker 바이너리 (worker-guide 에 따라 go build 한 결과)
+addon-agents/zip/VASCA_worker/bin/
+
+# ===== Project-specific =====
+# Addon Agent 배포 디렉터리 (업로드 후 자동 생성 — 내장 에이전트 제외)
+addon-agents/deployed/**
+!addon-agents/deployed/
+!addon-agents/deployed/.gitkeep
+front/src/pages/addon/deployed/**
+# Local DB
+local.db
+*.db-shm
+*.db-wal
+.gstack/
+
+# Custom(User)
+.review/*
+

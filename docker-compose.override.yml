@@ -1,0 +1,8 @@
+# docker-compose.override.yml — dev 개발 보조 (Docker Compose 자동 로드)
+# 소스 볼륨 마운트 + uvicorn --reload (컨테이너 내 핫리로드)
+# staging/prod 에서는 이 파일을 제외하고 실행: docker compose -f docker-compose.yml up
+services:
+  api:
+    volumes:
+      - .:/app
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

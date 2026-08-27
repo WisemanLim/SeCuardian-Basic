@@ -1,0 +1,77 @@
+{
+  "schema_version": 2,
+  "agent_key": "toolproxyagent",
+  "agent_type": "tool-proxy",
+  "version": "1.1.0",
+  "display_name": {
+    "ko": "Tool Proxy Agent",
+    "en": "Tool Proxy Agent"
+  },
+  "description": {
+    "ko": "외부 REST API를 MCP Tool로 변환하는 어댑터 Agent입니다. 전용 화면이 없어 좌측 메뉴에는 표시되지 않으며, AI 어시스턴트를 통해 질의응답으로 사용합니다.",
+    "en": "An adapter agent that converts external REST APIs into MCP tools. It has no dedicated screen and does not appear in the left menu — use it via Q&A through the AI Assistant."
+  },
+  "capabilities": [
+    {
+      "verb": "proxy",
+      "domain": "integration.external-api",
+      "description": "외부 REST API 도구를 MCP로 노출합니다",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tool_name": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "tool_name",
+          "arguments"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "object"
+          },
+          "status_code": {
+            "type": "integer"
+          }
+        }
+      },
+      "qos": {
+        "max_latency_ms": 10000,
+        "supports_async": false,
+        "supports_streaming": false
+      }
+    }
+  ],
+  "governance": {
+    "data_classification": "internal",
+    "human_approval_required": false,
+    "audit_level": "standard"
+  },
+  "required_env": [
+    "TOOL_PROXY_BASE_URL"
+  ],
+  "optional_env": [
+    "TOOL_PROXY_API_KEY"
+  ],
+  "requires": {
+    "core": ">=1.0.0",
+    "sdk": ">=1.0.0",
+    "agents": []
+  },
+  "dependencies": {
+    "python": []
+  },
+  "tables_owned": [],
+  "categories": [
+    "template"
+  ],
+  "publisher": "edentns",
+  "license": "MIT"
+}

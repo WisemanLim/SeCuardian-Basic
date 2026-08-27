@@ -1,0 +1,194 @@
+---
+# SeCuardian — Linux 서버 하드닝 플레이북 (E05 T05-1)
+# License: Apache-2.0 (SeCuardian 자체 구현)
+#
+# 참조: Kicksecure/security-misc (NOASSERTION) — 소스 참조만, 직접 포함 금지
+# 동일 효과를 Ansible 태스크로 재구현
+#
+# 사전 조건:
+#   - Ansible >= 2.12
+#   - 대상 OS: Ubuntu 22.04 LTS / Debian 12
+#   - sudo 권한 보유 계정
+#
+# 사용법:
+#   # dry-run (실제 변경 없이 확인)
+#   ansible-playbook -i inventory/hosts.yml playbooks/linux_hardening.yml --check --diff
+#
+#   # 실제 적용
+#   ansible-playbook -i inventory/hosts.yml playbooks/linux_hardening.yml
+#
+#   # 특정 태그만 실행
+#   ansible-playbook -i inventory/hosts.yml playbooks/linux_hardening.yml --tags sysctl
+
+- name: Linux Server Hardening (CIS Benchmark 기반 — Kicksecure 참조)
+  hosts: secuardian_servers
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - "{{ playbook_dir }}/../group_vars/all.yml"
+
+  pre_tasks:
+    - name: OS 확인 — Ubuntu/Debian 전용
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "Debian"
+        fail_msg: "이 플레이북은 Ubuntu/Debian 전용입니다. (현재: {{ ansible_os_family }})"
+        success_msg: "OS 확인 완료: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+      tags: always
+
+    - name: 패키지 캐시 업데이트
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      tags: always
+
+  tasks:
+
+    # ── 1. Kernel sysctl 하드닝 ──────────────────────────────────────────────
+    - name: "[SYSCTL] 커널 보안 파라미터 적용"
+      ansible.posix.sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+        sysctl_file: /etc/sysctl.d/99-secuardian-hardening.conf
+        reload: true
+      loop: "{{ kernel_hardening_sysctl | dict2items }}"
+      tags: sysctl
+      notify: Reload sysctl
+
+    # ── 2. 불필요 서비스 비활성화 ─────────────────────────────────────────────
+    - name: "[SERVICE] 불필요 서비스 존재 여부 확인"
+      ansible.builtin.command: systemctl list-unit-files --type=service --no-pager
+      register: _service_list
+      changed_when: false
+      check_mode: false
+      tags: services
+
+    - name: "[SERVICE] 불필요 서비스 중단 및 비활성화"
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: stopped
+        enabled: false
+        daemon_reload: false
+      loop: "{{ unnecessary_services }}"
+      when: "item + '.service' in _service_list.stdout"
+      tags: services
+      ignore_errors: true
+
+    # ── 3. umask 강화 (027) ──────────────────────────────────────────────────
+    - name: "[UMASK] /etc/login.defs UMASK 설정"
+      ansible.builtin.lineinfile:
+        path: /etc/login.defs
+        regexp: '^UMASK\s'
+        line: "UMASK           {{ login_defs_umask }}"
+        backup: true
+      tags: umask
+
+    - name: "[UMASK] /etc/profile.d/secuardian-umask.sh 생성"
+      ansible.builtin.copy:
+        dest: /etc/profile.d/secuardian-umask.sh
+        mode: "0644"
+        content: |
+          # SeCuardian: umask 027 — 그룹 쓰기 및 기타 모든 권한 차단
+          umask 027
+      tags: umask
+
+    # ── 4. SSH 하드닝 ────────────────────────────────────────────────────────
+    - name: "[SSH] sshd_config 하드닝 설정 적용"
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^#?{{ item.key }}\\s"
+        line: "{{ item.key }} {{ item.value }}"
+        backup: true
+        validate: "sshd -t -f %s"
+      loop: "{{ ssh_hardening | dict2items }}"
+      tags: ssh
+      notify: Restart sshd
+
+    # ── 5. 파일 권한 강화 ─────────────────────────────────────────────────────
+    - name: "[PERM] 민감 파일 권한 강화"
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        mode: "{{ item.mode }}"
+      loop: "{{ sensitive_files }}"
+      when: "item.path is file"
+      tags: permissions
+
+    # ── 6. sudo 강화 ─────────────────────────────────────────────────────────
+    - name: "[SUDO] sudo 로깅 활성화 (/etc/sudoers.d/secuardian)"
+      ansible.builtin.copy:
+        dest: /etc/sudoers.d/secuardian-hardening
+        mode: "0440"
+        validate: "visudo -cf %s"
+        content: |
+          # SeCuardian: sudo 세션 로깅 강화
+          Defaults        logfile=/var/log/sudo.log
+          Defaults        log_input
+          Defaults        log_output
+          Defaults        requiretty
+          Defaults        use_pty
+      tags: sudo
+
+    # ── 7. 패키지 자동 업데이트 ──────────────────────────────────────────────
+    - name: "[APT] unattended-upgrades 설치"
+      ansible.builtin.apt:
+        name: unattended-upgrades
+        state: present
+      tags: updates
+
+    - name: "[APT] 자동 보안 업데이트 활성화"
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        mode: "0644"
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+          APT::Periodic::Download-Upgradeable-Packages "1";
+          APT::Periodic::AutocleanInterval "7";
+      tags: updates
+
+    # ── 8. 코어 덤프 비활성화 ────────────────────────────────────────────────
+    - name: "[CORE] /etc/security/limits.conf 코어 덤프 비활성화"
+      ansible.builtin.lineinfile:
+        path: /etc/security/limits.conf
+        line: "{{ item }}"
+        backup: true
+      loop:
+        - "* soft core 0"
+        - "* hard core 0"
+      tags: coredump
+
+    - name: "[CORE] systemd 코어 덤프 비활성화"
+      ansible.builtin.lineinfile:
+        path: /etc/systemd/coredump.conf
+        regexp: "^#?{{ item.key }}="
+        line: "{{ item.key }}={{ item.value }}"
+      loop:
+        - {key: "Storage", value: "none"}
+        - {key: "ProcessSizeMax", value: "0"}
+      tags: coredump
+
+    # ── 9. 하드닝 완료 타임스탬프 기록 ───────────────────────────────────────
+    - name: "[AUDIT] 하드닝 적용 타임스탬프 기록"
+      ansible.builtin.copy:
+        dest: /etc/secuardian-hardening.stamp
+        mode: "0644"
+        content: |
+          # SeCuardian Linux Hardening Applied
+          applied_at: "{{ ansible_date_time.iso8601 }}"
+          applied_by: "{{ ansible_user_id }}"
+          hostname: "{{ ansible_hostname }}"
+          distribution: "{{ ansible_distribution }} {{ ansible_distribution_version }}"
+          playbook_version: "E05-T05-1"
+      tags: always
+
+  handlers:
+    - name: Reload sysctl
+      ansible.builtin.command: sysctl --system
+      changed_when: true
+
+    - name: Restart sshd
+      ansible.builtin.systemd:
+        name: sshd
+        state: restarted

@@ -1,0 +1,52 @@
+{
+  "agent_type": "service",
+  "version": "1.0.0",
+  "display_name": {
+    "ko": "셸 진단 (ShellAgent)",
+    "en": "Shell Diagnostics (ShellAgent)"
+  },
+  "description": {
+    "ko": "서버 상태를 점검하는 CLI/셸 진단 에이전트입니다. docker 컨테이너 상태, 디스크·메모리·프로세스 등을 읽기 전용 명령으로 확인합니다. 전용 터미널 화면(front)을 포함하며 supervisor/admin 만 사용할 수 있습니다.",
+    "en": "A CLI/shell diagnostic agent for checking server status. Inspect docker containers, disk, memory, and processes via read-only commands. Includes a dedicated terminal screen (front); supervisor/admin only."
+  },
+  "capabilities": [
+    {
+      "verb": "inspect",
+      "domain": "ops.server-status",
+      "description": "허용된 읽기 전용 진단 명령을 실행해 서버 상태를 확인합니다",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "stderr": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ],
+  "governance": {
+    "data_classification": "internal",
+    "human_approval_required": true,
+    "audit_level": "high"
+  },
+  "required_env": [],
+  "optional_env": [],
+  "min_platform_version": "1.0.0"
+}

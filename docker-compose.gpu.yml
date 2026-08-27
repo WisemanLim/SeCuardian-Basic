@@ -1,0 +1,26 @@
+# docker-compose.gpu.yml — Ollama NVIDIA GPU passthrough 오버레이 (Linux 전용)
+#
+# 전제: Linux 호스트 + NVIDIA 드라이버 + NVIDIA Container Toolkit(nvidia-ctk) 설치.
+# ⚠️ macOS/Windows Docker Desktop 은 GPU passthrough 미지원 — Docker Ollama 는 항상 CPU.
+#    macOS(Apple Silicon)에서 GPU(Metal)/MLX 가속은 **네이티브 Ollama/MLX** 로만 가능.
+#    → OLLAMA_RUNTIME=mlx (preflight 가 Docker 대신 네이티브 경로 안내).
+#
+# 사용 방법 (둘 중 하나):
+#   1) .env.* 에 OLLAMA_RUNTIME=gpu 설정 → scripts/ollama_preflight.sh 가 이 파일을 자동 병합
+#   2) 모든 compose 명령에 일괄 적용:
+#      export COMPOSE_FILE=docker-compose.yml:docker-compose.override.yml:docker-compose.gpu.yml
+#      (staging/prod 는 COMPOSE_FILE=docker-compose.yml:docker-compose.gpu.yml)
+services:
+  ollama:
+    # 호스트 GPU 예약 — count=all(기본) 또는 OLLAMA_GPU_COUNT 로 개수 지정
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${OLLAMA_GPU_COUNT:-all}
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_KEEP_ALIVE=-1
+      - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES:-all}
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
