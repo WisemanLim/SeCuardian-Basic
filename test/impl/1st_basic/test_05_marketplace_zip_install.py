@@ -21,7 +21,7 @@ def _zips(category: str) -> list[Path]:
 @pytest.mark.anyio
 async def test_all_security_agent_zips_install(client, auth):
     agent_zips = [z for z in _zips("security") if not z.stem.endswith("_worker")]
-    assert len(agent_zips) >= 21, [z.name for z in agent_zips]  # 기존 13 + 이식 8
+    assert len(agent_zips) >= 32, [z.name for z in agent_zips]  # 기존 13 + 이식 8 + SeCMP E9 7 + E10 4
     installed = []
     for z in agent_zips:
         r = await upload(client, auth, z.name, z.read_bytes(), force=True)

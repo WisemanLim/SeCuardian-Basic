@@ -62,6 +62,12 @@ def test_worker_and_governance_passthrough():
     assert n["epic"] == "E21" and n["layer"] == "L6"  # 알 수 없는 키 보존
 
 
+def test_worker_null_strings_coerced():
+    """SeCMP E10 자산은 worker.guide 를 null 로 내보냄 → "" 로 수용(400 대신 설치 진행)."""
+    m = _load({"worker": {"required": True, "kind": "external", "name": "Logto", "version": None, "guide": None}})
+    assert m.worker.required and m.worker.guide == "" and m.worker.version == ""
+
+
 def test_marketplace_security_zips_load():
     """SeCMP marketplace-assets/security 의 보안 Addon 전량(21종) meta.json load_manifest_bytes OK.
 

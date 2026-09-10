@@ -48,6 +48,12 @@ class AddonWorker(BaseModel):
     package: str = ""         # bundled: worker zip 파일명 (addon-agents/zip/)
     guide: str = ""           # {Name}-worker-guide.md
 
+    @field_validator("kind", "name", "version", "package", "guide", mode="before")
+    @classmethod
+    def _none_to_empty(cls, v):
+        # SeCMP 자산 meta 는 미정 필드를 null 로 내보낸다(예 worker.guide=null) → "" 로 수용
+        return "" if v is None else v
+
     @field_validator("kind")
     @classmethod
     def _kind(cls, v: str) -> str:

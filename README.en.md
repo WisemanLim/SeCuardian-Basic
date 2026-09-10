@@ -293,11 +293,11 @@ Key environment variables (full list in `.env.example`):
 
 ### 11.1 Standalone test bench (F18) — full agent install matrix
 
-All 39 agent ZIPs from SeCMP `marketplace-assets` are bundled under `addon-agents/zip/` as test fixtures.
+All **50** agent ZIPs from SeCMP `marketplace-assets` (security 34 · builtin 5 · utilities 5 · addon 6) are bundled under `addon-agents/zip/` as test fixtures. `test/impl/3rd_basic/` verifies a 1:1 sha256 match with the SeCMP assets.
 
 ```bash
 SB_TEST_INSTALL_DEPS=1 uv run python scripts/addon_matrix.py
-# == 39 zips: 37 ok / 2 rejected (workers, by design) / 0 fail
+# == 50 zips: 48 ok / 2 rejected (workers, by design) / 0 fail
 ```
 
 `missing_env` warnings are the intended behavior (graceful 503) when external worker stacks are not connected.
@@ -345,6 +345,7 @@ Derived from SeCuardian (commit `9ce864d`), with the following differences:
 
 ## Revision History
 
+- **B3 (2026-09-10)**: SeCMP asset sync — 7 new E9 security addons (agentic-threat-model, attack-surface-recon, api-vuln-scan, cicd-security-scan, ad-security-scan, malware-hunt, soc-intel-fusion) + 4 E10 packaged addons (logto-monitor, istio-mtls, wireproxy-ztna, observability-monitor) added to the F18 fixtures (39→50); matrix 48 OK / 2 REJECTED / 0 FAIL. Defect B3-1: E10 metas shipped `worker.guide=null` → 400; core manifest now coerces null string fields to `""`, and the origin (SeCMP) assets gained 4 worker-guide.md files and were repackaged. SeCuardian `4129b9f` (B1/B2) confirmed already applied; SeCMP E11 (governance) / E12 (playground cost·eval) and SecuFTPL v0.4 judged outside Basic core scope (see PRD change log). New suite `test/impl/3rd_basic/`.
 - **B2 (2026-08-27)**: F18 standalone test bench (39 agent ZIPs + `scripts/addon_matrix.py`), F19 scaffold/export independence guarantee (agent_key consistency, ShellAgent template restored, `not_independent` gate). pytest 39/39.
 
 | Version | Date | Changes |

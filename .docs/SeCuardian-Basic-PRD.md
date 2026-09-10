@@ -52,7 +52,7 @@
 | P2 | **F14. 운영 하드닝** — JWT 블랙리스트·A2A 태스크·MCP 상태 Redis 이전, `tbl_audit_log` 에 addon.install/toggle/delete 실기록, OTel 훅 | ict-saas NFR |
 | P2 | **F15. Helm 차트 실물**(`deploy/helm/`) + K8s 매니페스트, `deploy/{ansible,systemd}` 검증 | |
 | P2 | **F16. Addon 서명(Ed25519/GPG) 검증** — SeCMP `services/signature.py` 대칭 클라이언트 + 게시자 키 관리 | SeCMP 연동 |
-| P0 | **F18. 독립 시험 벤치** — SeCMP `marketplace-assets` 전 Agent ZIP(39종)을 `addon-agents/zip/` 에 **시험 픽스처로 동봉**하고, `scripts/addon_matrix.py` 로 전량 설치 매트릭스(OK/REJECTED/FAIL + missing_env) 를 진단. 오류 발견 시 원본(SeCuardian/SeCMP 자산)을 수정·재패키징 | 순수 코어 원칙 유지: deployed/ 는 여전히 비어 있고 zip/ 은 시험 원본일 뿐 자동 로드되지 않음 |
+| P0 | **F18. 독립 시험 벤치** — SeCMP `marketplace-assets` 전 Agent ZIP(50종, v0.3 기준)을 `addon-agents/zip/` 에 **시험 픽스처로 동봉**하고, `scripts/addon_matrix.py` 로 전량 설치 매트릭스(OK/REJECTED/FAIL + missing_env) 를 진단. 오류 발견 시 원본(SeCuardian/SeCMP 자산)을 수정·재패키징 | 순수 코어 원칙 유지: deployed/ 는 여전히 비어 있고 zip/ 은 시험 원본일 뿐 자동 로드되지 않음 |
 | P0 | **F19. 스캐폴드/Export ZIP 무의존 보장** — `/scaffold` 와 `/{key}/export` 산출 ZIP 은 (a) meta `agent_key` 를 새 이름 소문자로 정확히 갱신(설치 키 불일치 방지), (b) `requires.agents=[]` 강제(scaffold 는 `dependencies.python=[]`, export 는 자체 선언 유지 — 매니페스트만으로 설치 완결), (c) `-app.py` 의 코어 import 는 `app.addon_sdk`(또는 호환 shim) 만 허용 — 위반 시 생성 거부. `shell` 유형 템플릿(ShellAgent) 복원 | 독립 설치 가능한 ZIP 만 생성 |
 | P2 | **F17. Agent-type Addon** — `{Name}-agent.py` 로 `BaseAgent` 서브클래스 등록(MAS-Basic 규격). SeCuardian 은 BaseAgent 서브클래스 0 이므로 규격만 수용 | |
 
@@ -324,6 +324,8 @@ ZIP → sha256 → scan_zip(kind=worker 면 바이너리 정책) → meta v2 로
 | _templates | ToolProxyAgent (1) | tool-proxy | 낮음 | meta v2 |
 | 내장(router) | keycloak-monitor(router_keycloak+core/keycloak.py), vault-monitor(router_vault+core/vault*.py), falco-receiver, harbor-scanner, crowdsec-monitor, hardening-auditor, wazuh-siem, compliance-isms (8) | service | **높음** | 라우터 → `{key}-app.py`(prefix `/api/addon/{key}`), 코어 모듈 → `{key}_lib/`, config 필드 → `required_env`(os.getenv), Makefile 타깃 → worker-guide.md, seed 항목 → meta. `vault_loader` lifespan 훅은 배포 계층으로 이동 |
 | 내장(router) | vasca-cve (내장 판) | service | 낮음 | addon 판이 이미 존재 → 내장 판 폐기 |
+| SeCMP E9 (2026-09-10) | agentic-threat-model, attack-surface-recon, api-vuln-scan, cicd-security-scan, ad-security-scan, malware-hunt, soc-intel-fusion (7) | service | 낮음 | SeCMP 신규 구현 자산. meta 는 `min_platform_version=2.0.0`(→ requires.core) · `agent_key` 미기재(zip stem) · `governance.human_approval_required` — Basic 에서 무수정 설치 OK(3rd_basic) |
+| SeCMP E10 (2026-09-10) | logto-monitor, istio-mtls, wireproxy-ztna, observability-monitor (4) | service | 낮음 | SeCuardian 내장 라우터 4종(logto/istio/wireproxy/observability) 의 SeCMP 패키징. **결함 B3-1**: `worker.required=true` 인데 `worker.guide=null`·guide 파일 미동봉 → 원본에 worker-guide.md 추가·재패키징 + 코어 manifest null 수용 |
 | 내장(router, 시드 미포함) | caddy, cilium, istio, teler, wireproxy, soar, dfir, teleport, neosync, otel, redteam, ai_eval, behavior, agentic_soc, observability, isms (16 라우터) | — | — | addon 13종과 중복 → **코어에서 제거**, observability 는 `grafana-dashboard`(SeCMP utilities) 로 대체 |
 
 ## B-6. SeCuardian 결함 대응표 (F3)
@@ -370,6 +372,7 @@ CREATE TABLE IF NOT EXISTS tbl_addon_dependencies (
 | E4. 내장 8종 → Addon 이식 (P0) | SeCMP `marketplace-assets/security/{keycloak-monitor,vault-monitor,falco-receiver,harbor-scanner,crowdsec-monitor,hardening-auditor,wazuh-siem,compliance-isms}` + worker-guide (Basic 저장소 미동봉) | 8/8 import·smoke, SeCMP 자산 등재 | `test/impl/4th/` |
 | E5. SeCMP 클라이언트 강화·하드웨어 프로파일·프론트 분리 (P1) | `updates`, requires 안내, `ADDON_FRONT_DEPLOYED_PATH`, compose mlx, 폐쇄망 | Mock host 로 install e2e | `test/impl/5th/` |
 | E6. 문서·README·가이드 (P1) | README ko/en, addon-agents/README, AGENTS, COMPLIANCE, guides, 이행 가이드 | | 리뷰 |
+| E8. 상위 프로젝트 변경 반영 — SeCMP E9/E10 자산 동기 (P0, 2026-09-10) | zip 픽스처 39→50, manifest null 수용, SeCMP 원본 worker-guide 4종 | 매트릭스 48/2/0, pytest 45/45 | `test/impl/3rd_basic/` |
 | E7. 운영 하드닝·Helm·서명·Agent-type (P2) | Redis 상태, audit, OTel, Helm, Ed25519/GPG, `{Name}-agent.py` | | `test/impl/7th/` |
 
 ## B-9. SeCMP 측 요구사항 전달 (본 PRD 범위 외)
@@ -379,6 +382,7 @@ CREATE TABLE IF NOT EXISTS tbl_addon_dependencies (
 3. `agent_key` 정책 합의: 소문자 + 하이픈/언더스코어 허용.
 4. `security/` 카테고리에 내장→Addon 9종(E4) 추가, `compliance-isms` vs `isms-p-evidence` 통합 결정.
 5. 버전 협상: `catalog/{key}` 에 `versions[]` + `latest`, 인스턴스 `updates` 조회 지원.
+6. (v0.3 추가) 자산 meta 규약: `worker.required=true` 이면 `worker.guide` 에 `{key}-worker-guide.md` 를 기재하고 ZIP 에 동봉(B-1.3). 미정 문자열 필드는 `null` 대신 생략 또는 `""`. Basic 코어는 `null` 을 `""` 로 수용하지만 게시 심사 시 검증 권고.
 
 ## B-10. 규제·컴플라이언스 (COMPLIANCE.md 로 분리)
 
@@ -395,5 +399,6 @@ CREATE TABLE IF NOT EXISTS tbl_addon_dependencies (
 
 ## 변경 이력
 
+- 2026-09-10 v0.3: 상위 프로젝트 변경 반영(B3). ① SeCMP E9 신규 보안 Addon 7종 + E10 패키징 4종을 F18 픽스처에 편입(39→50종), 설치 매트릭스 48 OK/2 REJECTED/0 FAIL, `test/impl/3rd_basic/`. ② 결함 B3-1(E10 meta `worker.guide=null`) — 코어 `addon_manifest.AddonWorker` null→`""` 수용 + SeCMP 원본 4종 worker-guide.md 추가·재패키징(F18 "원본 수정" 원칙), B-9 §6 규약 추가. ③ 반영 판정: SeCuardian `4129b9f`(B1/B2 scaffold/export 수정)는 Basic 이 발견·기반영; SeCMP E11 `router_governance`(HITL 승인·OWASP 스코어카드)·E12 Playground cost/eval 은 SeCMP 플랫폼 기능(Out of Scope "SeCMP 서버 측 기능") — builtin 자산 ZIP(playground 등) 은 무변경으로 Basic 영향 없음, HITL 은 F14(P2 운영 하드닝) 후보로 기록; SecuFTPL v0.4(E13~E18: 벤치·KTO·디컨탬·lora_variant·DOC_PARSER·RAG 합성)는 파인튜닝 파이프라인 내부 변경으로 모델 소비 계약(Ollama/GGUF/MLX) 무변경 → Basic 변경 없음.
 - 2026-08-27 v0.2: 사용자 요구 반영 — F18(독립 시험 벤치: 전 Agent ZIP 동봉+설치 매트릭스), F19(스캐폴드/Export 무의존 보장, agent_key 정합, ShellAgent 템플릿 복원). F7 의 "저장소 미동봉" 은 deployed(런타임)에 한정하고 zip/ 은 시험 픽스처로 재정의.
 - 2026-08-27 v0.1: 초안. SeCuardian/SeCMP/MAS-Basic 감사 보고서 기반. 스택은 SeCuardian 으로 확정되어 `/wise-dev-standard:recommend` 생략, E1 착수.

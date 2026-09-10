@@ -292,11 +292,11 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/jso
 
 ### 11.1 독립 시험 벤치 (F18) — 전 Agent 설치 매트릭스
 
-SeCMP `marketplace-assets` 의 전 Agent ZIP(39종)이 `addon-agents/zip/` 에 시험 픽스처로 동봉됩니다.
+SeCMP `marketplace-assets` 의 전 Agent ZIP(**50종** = security 34 · builtin 5 · utilities 5 · addon 6)이 `addon-agents/zip/` 에 시험 픽스처로 동봉됩니다. SeCMP 자산과 sha256 1:1 일치를 `test/impl/3rd_basic/` 이 검증합니다.
 
 ```bash
 SB_TEST_INSTALL_DEPS=1 uv run python scripts/addon_matrix.py
-# == 39 zips: 37 ok / 2 rejected(worker, 의도됨) / 0 fail
+# == 50 zips: 48 ok / 2 rejected(worker, 의도됨) / 0 fail
 ```
 
 `missing_env` 경고는 외부 worker 스택 미연결 환경의 의도된 동작(503 graceful)입니다.
@@ -318,6 +318,7 @@ uv run pytest test/impl
 ```
 
 `test/impl/1st_basic/` 스위트: 코어 부팅(`test_01_core_boot`) · Addon 라이프사이클 업로드/토글/삭제/재업로드(`test_02_addon_lifecycle`) · manifest v2/레거시 alias(`test_03_manifest`) · 정적 검증·의존성 설치(`test_04_validator_deps`) · 마켓플레이스 ZIP 전량 설치(`test_05_marketplace_zip_install`).
+`test/impl/3rd_basic/` 스위트: SeCMP 자산 동기(E9 신규 보안 7종 + E10 패키징 4종) — 픽스처 인벤토리·sha256 일치·신규 11종 설치·E10 worker-guide 서빙·`/status` 우아한 저하(`test_07_secmp_sync`).
 
 ---
 
@@ -344,6 +345,7 @@ SeCuardian(커밋 `9ce864d`)에서 파생하며 다음이 달라졌습니다.
 
 ## Revision History
 
+- **B3 (2026-09-10)**: SeCMP 자산 동기 — E9 신규 보안 Addon 7종(agentic-threat-model·attack-surface-recon·api-vuln-scan·cicd-security-scan·ad-security-scan·malware-hunt·soc-intel-fusion) + E10 패키징 4종(logto-monitor·istio-mtls·wireproxy-ztna·observability-monitor) 를 F18 픽스처에 편입(39→50종), 매트릭스 48 OK/2 REJECTED/0 FAIL. 결함 B3-1: E10 meta `worker.guide=null` 로 400 → 코어 manifest 가 null 문자열 필드를 `""` 로 수용 + 원본(SeCMP) 에 worker-guide.md 4종 추가·재패키징. SeCuardian `4129b9f`(B1/B2) 는 기반영 확인, SeCMP E11(governance)/E12(playground cost·eval) 및 SecuFTPL v0.4 는 Basic 코어 범위 외로 판정(PRD 변경 이력 참조).
 - **B2 (2026-08-27)**: F18 독립 시험 벤치(전 Agent ZIP 39종 + `scripts/addon_matrix.py`), F19 스캐폴드/Export 무의존 보장(agent_key 정합, ShellAgent 템플릿 복원, `not_independent` 게이트). pytest 39/39.
 
 | 버전 | 일자 | 내용 |
