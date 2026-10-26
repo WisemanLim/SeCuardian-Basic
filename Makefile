@@ -19,16 +19,12 @@ SKIP_DEPLOYED_ADDONS ?= $(if $(filter dev staging prod,$(ENV)),true,false)
 _port = $(shell grep '^$(1)=' .env.$(ENV) 2>/dev/null | cut -d= -f2 | tr -d '"' | tr -d "'" | xargs)
 
 # ── 인프라 단독 (하위 호환) ───────────────────────────────────────────────────
-up:      ## 인프라만 기동 (postgres + redis + ollama)
+up:      ## 인프라만 기동 (postgres + redis, ollama 는 OLLAMA_ENABLED=true·로컬 URL 일 때만)
 	@bash scripts/ollama_preflight.sh .env.$(ENV)
-	@if docker compose --env-file .env.$(ENV) ps --status running -q ollama 2>/dev/null | grep -q .; then \
-		docker compose --env-file .env.$(ENV) up -d; \
-	else \
-		docker compose --env-file .env.$(ENV) up -d postgres redis; \
-	fi
+	docker compose --env-file .env.$(ENV) up -d
 
 down:    ## 전체 컨테이너 정리
-	docker compose --env-file .env.$(ENV) --profile app --profile web down --remove-orphans
+	docker compose --env-file .env.$(ENV) --profile app --profile web --profile ollama down --remove-orphans
 
 # ── 개발 서버 직접 실행 (터미널 분리용) ──────────────────────────────────────
 dev-be:  ## 백엔드만 직접 실행 (uv + uvicorn --reload)
@@ -41,11 +37,7 @@ dev-fe:  ## 프론트엔드만 실행 (pnpm dev)
 
 dev:     ## 전체 개발환경 안내 (infra 기동 후 터미널 안내)
 	@bash scripts/ollama_preflight.sh .env.$(ENV)
-	@if docker compose --env-file .env.$(ENV) ps --status running -q ollama 2>/dev/null | grep -q .; then \
-		docker compose --env-file .env.$(ENV) up -d; \
-	else \
-		docker compose --env-file .env.$(ENV) up -d postgres redis; \
-	fi
+	docker compose --env-file .env.$(ENV) up -d
 	@BACKEND_PORT=$$(grep '^BACKEND_PORT=' .env.$(ENV) 2>/dev/null | cut -d= -f2 | tr -d '"' | tr -d "'" || echo 8200); \
 	FRONTEND_PORT=$$(grep '^FRONTEND_PORT=' .env.$(ENV) 2>/dev/null | cut -d= -f2 | tr -d '"' | tr -d "'" || echo 4200); \
 	echo "▶ Backend  → http://localhost:$${BACKEND_PORT:-8200}  (make dev-be)"; \
@@ -71,7 +63,7 @@ local-all: ## local 전체 기동: Ollama Docker + BE/FE pm2 (SQLite 자동)
 
 local-stop: ## local 전체 중단 (pm2 + ollama)
 	pm2 stop ecosystem.config.js || true
-	docker compose --env-file .env.$(ENV) stop ollama
+	docker compose --env-file .env.$(ENV) --profile ollama stop ollama
 
 local-logs: ## local 로그 모니터링 (pm2)
 	pm2 logs
@@ -82,14 +74,10 @@ local-status: ## local 프로세스 상태 (pm2)
 # ── dev — PostgreSQL + Redis + Ollama + BE + FE (Docker Compose) ──────────────
 dev-all: ## dev 전체 기동 (.env.dev, docker compose)
 	@bash scripts/ollama_preflight.sh .env.dev
-	@if docker compose --env-file .env.dev ps --status running -q ollama 2>/dev/null | grep -q .; then \
-		docker compose --env-file .env.dev --profile app --profile web up -d; \
-	else \
-		docker compose --env-file .env.dev --profile app --profile web up -d --scale ollama=0; \
-	fi
+	docker compose --env-file .env.dev --profile app --profile web up -d
 
 dev-stop: ## dev 전체 중단
-	docker compose --env-file .env.dev --profile app --profile web down
+	docker compose --env-file .env.dev --profile app --profile web --profile ollama down
 
 dev-logs: ## dev 로그 모니터링 (docker compose)
 	docker compose --env-file .env.dev --profile app --profile web logs -f
@@ -97,14 +85,10 @@ dev-logs: ## dev 로그 모니터링 (docker compose)
 # ── staging ───────────────────────────────────────────────────────────────────
 staging-all: ## staging 전체 기동 (.env.staging, docker compose)
 	@bash scripts/ollama_preflight.sh .env.staging
-	@if docker compose -f docker-compose.yml --env-file .env.staging ps --status running -q ollama 2>/dev/null | grep -q .; then \
-		docker compose -f docker-compose.yml --env-file .env.staging --profile app --profile web up -d; \
-	else \
-		docker compose -f docker-compose.yml --env-file .env.staging --profile app --profile web up -d --scale ollama=0; \
-	fi
+	docker compose -f docker-compose.yml --env-file .env.staging --profile app --profile web up -d
 
 staging-stop: ## staging 전체 중단
-	docker compose -f docker-compose.yml --env-file .env.staging --profile app --profile web down
+	docker compose -f docker-compose.yml --env-file .env.staging --profile app --profile web --profile ollama down
 
 staging-logs: ## staging 로그 모니터링
 	docker compose -f docker-compose.yml --env-file .env.staging --profile app --profile web logs -f
@@ -112,14 +96,10 @@ staging-logs: ## staging 로그 모니터링
 # ── prod ──────────────────────────────────────────────────────────────────────
 prod-all: ## prod 전체 기동 (.env.prod, docker compose)
 	@bash scripts/ollama_preflight.sh .env.prod
-	@if docker compose -f docker-compose.yml --env-file .env.prod ps --status running -q ollama 2>/dev/null | grep -q .; then \
-		docker compose -f docker-compose.yml --env-file .env.prod --profile app --profile web up -d; \
-	else \
-		docker compose -f docker-compose.yml --env-file .env.prod --profile app --profile web up -d --scale ollama=0; \
-	fi
+	docker compose -f docker-compose.yml --env-file .env.prod --profile app --profile web up -d
 
 prod-stop: ## prod 전체 중단
-	docker compose -f docker-compose.yml --env-file .env.prod --profile app --profile web down
+	docker compose -f docker-compose.yml --env-file .env.prod --profile app --profile web --profile ollama down
 
 prod-logs: ## prod 로그 모니터링
 	docker compose -f docker-compose.yml --env-file .env.prod --profile app --profile web logs -f api

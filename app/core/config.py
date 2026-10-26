@@ -1,5 +1,6 @@
 """secuardian-basic — settings (env-driven)."""
 import os
+import re
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -8,6 +9,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BASE_DIR = Path(__file__).resolve().parents[2]
 
 _env_file = f".env.{os.getenv('ENV', 'local')}"
+
+# Docker 컨테이너 내부에서 OLLAMA_BASE_URL 이 loopback(localhost/127.0.0.1)이면 호스트를 가리키도록
+# host.docker.internal 로 치환. 외부 서버 IP 는 그대로 사용 (compose 는 env_file 값을 덮어쓰지 않음).
+if os.path.exists("/.dockerenv") and os.environ.get("OLLAMA_BASE_URL"):
+    os.environ["OLLAMA_BASE_URL"] = re.sub(
+        r"^(https?://)(localhost|127\.0\.0\.1)(?=[:/]|$)", r"\1host.docker.internal",
+        os.environ["OLLAMA_BASE_URL"],
+    )
 
 
 class Settings(BaseSettings):

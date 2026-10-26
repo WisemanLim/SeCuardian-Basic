@@ -16,7 +16,7 @@ SeCuardian-Basic is a **deployable Basic Edition security Multi-AI Agent runtime
   1. **SeCuardian-Marketplace (SeCMP) catalog** browse → install (`/agents` → Marketplace tab)
   2. **ZIP file upload** (`/agents` → ZIP upload registration)
 - **Addon SDK + manifest v2**: an addon imports only the public `app.addon_sdk` SDK and declares its dependencies, required core version, worker, and environment variables in `{Name}-meta.json` (manifest v2) as an independent package.
-- Only the scaffolding templates (`addon-agents/_templates/`, 5 kinds) remain in the repository for development convenience.
+- Only the scaffolding templates (`addon-agents/_templates/`, 6 kinds) remain in the repository for development convenience.
 
 | Item | Value |
 |------|-------|
@@ -107,7 +107,7 @@ make local-all
 Other run/ops targets:
 
 ```bash
-make up            # infra only (postgres + redis + ollama)
+make up            # infra only (postgres + redis; ollama only when OLLAMA_ENABLED=true and the URL is local)
 make dev-be        # backend only (uvicorn --reload, :8200)
 make dev-fe        # frontend only (pnpm dev, :4200)
 make local-stop    # stop local stack
@@ -227,7 +227,7 @@ SeCuardian-Basic/
 │   │                       # ★ addon_manifest · addon_validator · addon_deps
 │   └── db.py               #   raw SQL (SQLite/PG dual)
 ├── addon-agents/
-│   ├── _templates/         #   5 scaffolding templates (Board·RagAgent·ServiceAgent·ToolProxyAgent·UserManager)
+│   ├── _templates/         #   6 scaffolding templates (Board·RagAgent·ServiceAgent·ShellAgent·ToolProxyAgent·UserManager)
 │   ├── manifest.schema.json# ★ manifest v2 JSON Schema
 │   ├── Makefile            #   make init/test/publish/clean
 │   ├── deployed/           #   installed agents (runtime output — not in git)
@@ -237,7 +237,7 @@ SeCuardian-Basic/
 ├── test/                   # dev-env + impl/ pytest
 ├── standalone/             # single-agent runner
 ├── deploy/                 # ansible · ci · docker (sonarqube)
-├── docker-compose.yml      # postgres·redis·ollama·llamacpp·vllm·api·web
+├── docker-compose.yml      # postgres·redis·ollama(profile)·llamacpp·vllm·api·web
 ├── docker-compose.gpu.yml  # NVIDIA GPU overlay
 └── Makefile
 ```
@@ -284,6 +284,8 @@ Key environment variables (full list in `.env.example`):
 | `ANTHROPIC_API_KEY` | — | Claude API (Cloud-API mode) |
 | `LOCAL_LLM_PROVIDER` | `ollama` | `ollama \| llamacpp \| vllm` |
 | `OLLAMA_RUNTIME` | `cpu` | `cpu \| gpu \| mlx` |
+| `OLLAMA_ENABLED` | `true` | `false` skips starting the Ollama Docker container and pulling models |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | an external server address (e.g. `http://192.168.8.243:11434`) means no Ollama container is started. Inside containers `localhost` is auto-rewritten to `host.docker.internal` |
 | `MARKETPLACE_BASE_URL` etc. | — | SeCMP connection (§7) |
 | `ADDON_WEB_REBUILD` | `none` | addon frontend rebuild strategy `none \| compose \| webhook` |
 

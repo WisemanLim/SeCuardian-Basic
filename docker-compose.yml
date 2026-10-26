@@ -30,6 +30,9 @@ services:
 
   # Ollama — 로컬 LLM 폴백 (Claude API 장애 시 자동 전환, F3)
   # 포트: OLLAMA_PORT (기본 11434). 네이티브 Ollama 실행 중이면 make *-all 이 자동 스킵
+  # profiles:[ollama] → 일반 `docker compose up` 으로는 기동되지 않음.
+  #   scripts/ollama_preflight.sh 가 OLLAMA_ENABLED=true 이고 OLLAMA_BASE_URL 이 로컬 주소일 때만 기동.
+  #   외부 서버 Ollama 사용 시: OLLAMA_ENABLED=false + OLLAMA_BASE_URL=http://<외부IP>:11434
   #
   # 실행 런타임(OLLAMA_RUNTIME): cpu(기본) | gpu | mlx
   #   - cpu : 이 파일 그대로 CPU 추론.
@@ -39,6 +42,7 @@ services:
   #           네이티브 Ollama/MLX 서버를 호스트에서 구동하고 Docker Ollama 는 띄우지 않음
   #           (preflight 가 안내). 앱은 OLLAMA_BASE_URL(host.docker.internal:PORT)로 접속.
   ollama:
+    profiles: ["ollama"]
     image: ollama/ollama:latest
     ports: ["${OLLAMA_PORT:-11434}:11434"]
     volumes:
@@ -94,7 +98,8 @@ services:
       # 컨테이너 내부 서비스 주소 — 호스트 포트 매핑과 무관하게 내부 포트 사용
       - DATABASE_URL=postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-app_db}
       - REDIS_URL=redis://redis:6379
-      - OLLAMA_BASE_URL=http://host.docker.internal:${OLLAMA_PORT:-11434}
+      # OLLAMA_BASE_URL 은 env_file 값을 그대로 사용 (외부 서버 IP 지정 가능).
+      # localhost/127.0.0.1 이면 앱(config.py)이 컨테이너 내부에서 host.docker.internal 로 치환.
       # MCP URL 외부 노출 호스트 — 호스트 IP 또는 도메인 명시 (Docker/NAT 환경 필수)
       - MCP_HOST=${MCP_HOST:-}
       # addon 업로드 후 web 재빌드 전략 (F10/D5): none(기본, 재빌드 안 함) | compose(docker.sock 필요) | webhook(ADDON_WEB_REBUILD_WEBHOOK_URL 호출)
@@ -120,8 +125,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
-      ollama:
         condition: service_started
 
   # ── 프론트엔드 (profiles:[web] → prod 이미지 빌드용) ──────────────────────

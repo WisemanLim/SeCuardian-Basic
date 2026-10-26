@@ -16,7 +16,7 @@ SeCuardian-Basic 은 `SeCuardian` 의 코어(Orchestrator + AI 어시스턴트 +
   1. **SeCuardian-Marketplace(SeCMP) 카탈로그** 조회 → 설치 (`/agents` → 마켓플레이스 탭)
   2. **ZIP 파일 업로드** (`/agents` → ZIP 업로드 등록)
 - **Addon SDK + 매니페스트 v2**: Addon 은 `app.addon_sdk` 공개 SDK 만 import 하고, `{Name}-meta.json`(manifest v2)으로 의존성·요구 코어 버전·worker·환경변수를 선언하는 독립 패키지입니다.
-- 개발 편의를 위한 스캐폴딩 템플릿(`addon-agents/_templates/`) 5종만 저장소에 유지합니다.
+- 개발 편의를 위한 스캐폴딩 템플릿(`addon-agents/_templates/`) 6종만 저장소에 유지합니다.
 
 | 항목 | 값 |
 |------|-----|
@@ -106,7 +106,7 @@ make local-all
 기타 실행/운영 타깃:
 
 ```bash
-make up            # 인프라만 기동 (postgres + redis + ollama)
+make up            # 인프라만 기동 (postgres + redis, ollama 는 OLLAMA_ENABLED=true·로컬 URL 일 때만)
 make dev-be        # 백엔드만 (uvicorn --reload, :8200)
 make dev-fe        # 프론트만 (pnpm dev, :4200)
 make local-stop    # local 전체 중단
@@ -226,7 +226,7 @@ SeCuardian-Basic/
 │   │                       # ★ addon_manifest · addon_validator · addon_deps
 │   └── db.py               #   raw SQL (SQLite/PG 듀얼)
 ├── addon-agents/
-│   ├── _templates/         #   스캐폴딩 템플릿 5종 (Board·RagAgent·ServiceAgent·ToolProxyAgent·UserManager)
+│   ├── _templates/         #   스캐폴딩 템플릿 6종 (Board·RagAgent·ServiceAgent·ShellAgent·ToolProxyAgent·UserManager)
 │   ├── manifest.schema.json# ★ 매니페스트 v2 JSON Schema
 │   ├── Makefile            #   make init/test/publish/clean
 │   ├── deployed/           #   설치된 Agent (런타임 산출물 — git 미포함)
@@ -236,7 +236,7 @@ SeCuardian-Basic/
 ├── test/                   # dev-env + impl/ pytest
 ├── standalone/             # Agent 단독 실행 러너
 ├── deploy/                 # ansible · ci · docker(sonarqube)
-├── docker-compose.yml      # postgres·redis·ollama·llamacpp·vllm·api·web
+├── docker-compose.yml      # postgres·redis·ollama(profile)·llamacpp·vllm·api·web
 ├── docker-compose.gpu.yml  # NVIDIA GPU 오버레이
 └── Makefile
 ```
@@ -283,6 +283,8 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/jso
 | `ANTHROPIC_API_KEY` | — | Claude API (Cloud-API 모드) |
 | `LOCAL_LLM_PROVIDER` | `ollama` | `ollama \| llamacpp \| vllm` |
 | `OLLAMA_RUNTIME` | `cpu` | `cpu \| gpu \| mlx` |
+| `OLLAMA_ENABLED` | `true` | `false` 면 Ollama Docker 컨테이너 기동·모델 pull 스킵 |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | 외부 서버 IP 지정 시(예: `http://192.168.8.243:11434`) Ollama 컨테이너 미기동. 컨테이너 내부에서 `localhost` 는 `host.docker.internal` 로 자동 치환 |
 | `MARKETPLACE_BASE_URL` 등 | — | SeCMP 연결 (§7) |
 | `ADDON_WEB_REBUILD` | `none` | Addon 프론트 재빌드 전략 `none \| compose \| webhook` |
 

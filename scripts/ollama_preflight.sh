@@ -4,6 +4,8 @@
 #
 # 실행 제어 / offline 내성:
 #   - OLLAMA_ENABLED=false  → Ollama Docker 기동·모델 준비를 전부 스킵 (실행옵션, #5)
+#   - OLLAMA_BASE_URL 이 외부 호스트(localhost/127.0.0.1/host.docker.internal 외) →
+#       외부 서버 Ollama 사용으로 판단, Docker 기동·모델 준비 스킵 (연결 확인만)
 #   - OLLAMA_RUNTIME=cpu|gpu|mlx → 추론 런타임 선택
 #       cpu(기본): CPU 추론
 #       gpu      : Linux+NVIDIA — docker-compose.gpu.yml 병합해 호스트 GPU 예약
@@ -20,7 +22,8 @@ ENV_FILE="${1:-.env.local}"
 _read_env() {
     local v="${!1-}"
     if [ -n "${v:-}" ]; then printf '%s\n' "$v"; return; fi
-    grep "^$1=" "$ENV_FILE" 2>/dev/null | cut -d= -f2 | tr -d '"' | tr -d "'" | xargs || true
+    # 값 뒤 인라인 주석(` # ...`) 제거
+    grep "^$1=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- | sed 's/[[:space:]]#.*$//' | tr -d '"' | tr -d "'" | xargs || true
 }
 _lower() { echo "$1" | tr '[:upper:]' '[:lower:]'; }
 
@@ -31,6 +34,22 @@ OLLAMA_ENABLED="${OLLAMA_ENABLED:-true}"
 case "$(_lower "$OLLAMA_ENABLED")" in
     false|0|no|off)
         echo "⏭️  OLLAMA_ENABLED=${OLLAMA_ENABLED} — Ollama Docker/모델 준비 스킵"
+        exit 0
+        ;;
+esac
+
+# ── 0-1. 외부 서버 Ollama (OLLAMA_BASE_URL 호스트가 로컬이 아님) ─────────────
+OLLAMA_BASE_URL="$(_read_env OLLAMA_BASE_URL)"
+_ollama_host="$(printf '%s' "$OLLAMA_BASE_URL" | sed -E 's#^[a-zA-Z]+://##; s#[/:].*$##')"
+case "$(_lower "$_ollama_host")" in
+    ""|localhost|127.0.0.1|0.0.0.0|host.docker.internal|ollama) ;;
+    *)
+        echo "🌐 외부 Ollama 사용 (OLLAMA_BASE_URL=${OLLAMA_BASE_URL}) — Ollama Docker/모델 준비 스킵"
+        if curl -sf -m 5 "${OLLAMA_BASE_URL%/}/api/tags" >/dev/null 2>&1; then
+            echo "✅ 외부 Ollama 연결 확인"
+        else
+            echo "⚠️  외부 Ollama 응답 없음 — 서버 기동·방화벽(OLLAMA_HOST=0.0.0.0) 확인 필요 (비차단)"
+        fi
         exit 0
         ;;
 esac
@@ -47,9 +66,10 @@ OLLAMA_PORT="${OLLAMA_PORT:-11434}"
 OLLAMA_URL="http://localhost:${OLLAMA_PORT}"
 
 # compose 호출 프리픽스 — gpu 런타임이면 GPU 오버레이 병합
-_COMPOSE=(docker compose --env-file "$ENV_FILE")
+# ollama 서비스는 profiles:[ollama] → --profile ollama 명시
+_COMPOSE=(docker compose --env-file "$ENV_FILE" --profile ollama)
 if [ "$OLLAMA_RUNTIME" = "gpu" ]; then
-    _COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.gpu.yml --env-file "$ENV_FILE")
+    _COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.gpu.yml --env-file "$ENV_FILE" --profile ollama)
 fi
 
 echo "🧩 OLLAMA_RUNTIME=${OLLAMA_RUNTIME} (host: ${UNAME_S}/${UNAME_M})"
